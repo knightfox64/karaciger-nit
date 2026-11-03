@@ -15,6 +15,8 @@ Tek dosyalık statik sayfadır (`index.html`); sunucu gerekmez. Hasta verisi hi�
 
 **Sonuçları dışa aktar → Excel veritabanı** bölümünden hasta kayıtlarınızı tuttuğunuz `.xlsx` dosyasını seçin (veya yeni bir veritabanı başlatın). **Bu hastayı veritabanına ekle** hastayı yeni satır olarak ekler; aynı hasta no ve tetkik tarihi varsa üzerine yazma veya yeni satır seçeneği sunar. Chrome'da dosyaya doğrudan yazılabilir; diğer tarayıcılarda **Güncel veritabanını indir** ile güncel dosyayı alıp eskisinin yerine koyun. Dosya bilgisayarınızda kalır.
 
+Boş şablon: [karaciger_NIT_veritabani.xlsx](karaciger_NIT_veritabani.xlsx) (Ozet, Veritabani ve Sozluk sayfaları). Sütun adlarını değiştirmeyin; sayfa kayıtları bu adlarla eşleştirir.
+
 ## Güncelleme
 
 `index.html` dosyasını depoda değiştirip commit ettiğinizde aynı adres otomatik güncellenir; bağlantıyı paylaştığınız herkes yeni sürümü görür (tarayıcı önbelleği nedeniyle birkaç dakika gecikebilir).

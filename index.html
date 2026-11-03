@@ -1005,9 +1005,10 @@ function dbBuffer(){
   const ws=XLSX.utils.aoa_to_sheet([DB.hdr,...DB.rows]);
   ws["!cols"]=DB.hdr.map(h=>({wch:Math.max(8,Math.min(28,String(h).length+2))}));
   ws["!freeze"]={xSplit:4,ySplit:1};
-  if(DB.wb.SheetNames.includes(DB.sheet)) DB.wb.Sheets[DB.sheet]=ws; else XLSX.utils.book_append_sheet(DB.wb,ws,DB.sheet);
-  // Veritabani sayfası ilk sırada olsun
-  DB.wb.SheetNames=[DB.sheet,...DB.wb.SheetNames.filter(n=>n!==DB.sheet)];
+  if(DB.wb.SheetNames.includes(DB.sheet)) DB.wb.Sheets[DB.sheet]=ws;
+  else { XLSX.utils.book_append_sheet(DB.wb,ws,DB.sheet); DB.wb.SheetNames=[DB.sheet,...DB.wb.SheetNames.filter(n=>n!==DB.sheet)]; }
+  // Özet formüllerinin Excel açılışında yeniden hesaplanması için
+  DB.wb.Workbook=DB.wb.Workbook||{}; DB.wb.Workbook.CalcPr=Object.assign({},DB.wb.Workbook.CalcPr,{fullCalcOnLoad:"1"});
   return XLSX.write(DB.wb,{bookType:"xlsx",type:"array"});
 }
 async function dbWriteHandle(){
