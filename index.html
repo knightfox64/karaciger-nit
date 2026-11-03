@@ -91,6 +91,15 @@ legend{font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:
 .hint{font-size:.76rem;color:var(--ink-2);grid-column:1/-1;margin:0}
 .alc-warn{grid-column:1/-1;font-size:.83rem;font-weight:500;border-left:4px solid var(--c,var(--na));background:var(--cb,var(--na-bg));color:var(--ink);padding:7px 10px;border-radius:6px}
 .alc-warn:empty{display:none}
+.dbbox{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--paper)}
+.dbbox h3{font-size:1rem}
+.dbstate{font-size:.86rem;font-weight:500}
+.dbstate .warn{color:var(--warn)}
+.dbchoice{border-left:4px solid var(--warn);background:var(--warn-bg);padding:8px 10px;border-radius:6px;font-size:.85rem;display:flex;flex-direction:column;gap:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:.9rem;z-index:60;max-width:min(560px,92vw);box-shadow:0 6px 24px rgba(0,0,0,.25)}
+#dbChip{align-self:center;cursor:pointer;border:0;font-family:inherit}
+
 .fxwrap{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:-4px}
 .fx{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:var(--paper);color:var(--accent);font-weight:700;font-size:.95rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .fx:hover{border-color:var(--accent)}
@@ -171,14 +180,15 @@ textarea{width:100%;min-height:64px;padding:8px;border:1px solid var(--line);bor
   </div>
   <div class="actions">
     <button class="btn" id="btnExample" type="button">Örnek hasta yükle</button>
-    <button class="btn" id="btnClear" type="button">Formu temizle</button>
+    <button type="button" class="pill lvl-info" id="dbChip" hidden></button>
+    <button class="btn" id="btnClear" type="button" title="Form, hasta bilgileri ve not alanını sıfırlar">Temizle</button>
     <button class="btn primary" id="btnExport" type="button">Sonuçları dışa aktar</button>
   </div>
 </header>
 
 <main class="wrap">
   <section class="inputs" id="inputs" aria-label="Veri girişi">
-    <div class="note-banner" id="exampleBanner">Örnek hasta değerleri yüklü. Kendi hastanız için <b>Formu temizle</b>'ye basın. Ondalık için virgül veya nokta kullanabilirsiniz.</div>
+    <div class="note-banner" id="exampleBanner">Örnek hasta değerleri yüklü. Kendi hastanız için <b>Temizle</b>'ye basın. Ondalık için virgül veya nokta kullanabilirsiniz.</div>
     <!-- fieldsets JS ile oluşturulur -->
   </section>
 
@@ -190,12 +200,29 @@ textarea{width:100%;min-height:64px;padding:8px;border:1px solid var(--line);bor
   </section>
 </main>
 
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="modal-bg" id="modalBg" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal">
     <h2 id="modalTitle">Hasta bilgileri ve dışa aktarma</h2>
     <div class="grid2" id="patientFields"></div>
     <div class="field wide"><label for="p_note">Not / klinik yorum</label><textarea id="p_note" placeholder="Rapora eklenecek serbest metin"></textarea></div>
-    <p class="hint" id="exportHint">PDF rapor, Excel dosyası (rapor + girdiler + araştırma veritabanına yapıştırmaya uygun tek satır) veya düz metin olarak alabilirsiniz.</p>
+    <section class="dbbox" aria-labelledby="dbTitle">
+      <h3 id="dbTitle">Excel veritabanı</h3>
+      <p class="hint">Hasta kayıtlarını tuttuğunuz Excel dosyasını seçin; bu hasta yeni bir satır olarak eklenir. Dosya bilgisayarınızda kalır, internete gönderilmez.</p>
+      <div class="dbstate" id="dbState">Veritabanı yüklenmedi.</div>
+      <div class="row-actions" style="justify-content:flex-start">
+        <button class="btn" id="btnDbOpen" type="button">Veritabanı dosyası seç</button>
+        <button class="btn" id="btnDbNew" type="button">Yeni veritabanı başlat</button>
+        <input type="file" id="dbFile" accept=".xlsx,.xls,.csv" hidden>
+      </div>
+      <label class="chk" for="dbAutoClear"><input type="checkbox" id="dbAutoClear" checked><span>Ekledikten sonra formu ve hasta bilgilerini temizle (sonraki hastaya geç)</span></label>
+      <div class="dbchoice" id="dbChoice" hidden></div>
+      <div class="row-actions" style="justify-content:flex-start">
+        <button class="btn primary" id="btnDbAdd" type="button" disabled>Bu hastayı veritabanına ekle</button>
+        <button class="btn" id="btnDbSave" type="button" disabled>Güncel veritabanını indir</button>
+      </div>
+    </section>
+    <p class="hint" id="exportHint">Tek hasta için PDF rapor, Excel dosyası veya düz metin de alabilirsiniz.</p>
     <div class="status" id="exportStatus" aria-live="polite"></div>
     <div class="row-actions">
       <button class="btn" id="btnCancel" type="button">Kapat</button>
@@ -787,7 +814,6 @@ function loadExample(){
   render();
 }
 document.getElementById("btnExample").onclick=loadExample;
-document.getElementById("btnClear").onclick=()=>{clearForm();document.getElementById("exampleBanner").style.display="none";render();};
 
 /* ---------- Dışa aktarma ---------- */
 const PFIELDS=[
@@ -926,18 +952,154 @@ document.getElementById("btnXlsx").onclick=async()=>{
   XLSX.utils.book_append_sheet(wb,ws1,"Rapor");
   const ws2=XLSX.utils.aoa_to_sheet([["Parametre","Değer","Birim"],...inputRows(o.d)]); ws2["!cols"]=[{wch:44},{wch:16},{wch:22}];
   XLSX.utils.book_append_sheet(wb,ws2,"Girdiler");
-  const hdr=["hasta_no","ad","soyad","dogum_tarihi","tetkik_tarihi","etiyoloji","ek_tani","cinsiyet"],
-        row=[p.p_id,p.p_first,p.p_last,p.p_dob,p.p_date,p.etioLabel,p.p_diag,o.d.sex==="M"?"E":"K"];
-  INPUT_ORDER.forEach(f=>{hdr.push(f.id);const v=o.d[f.id];row.push(f.type==="check"?(v?1:0):(v==null?"":(typeof v==="number"?+v.toFixed(3):v)));});
-  hdr.push("alkol_g_gun");row.push(o.d.alcDay==null?"":+o.d.alcDay.toFixed(1));
-  SCORES.forEach(s=>{const r=o.res[s.id];hdr.push(s.id,s.id+"_sinif");row.push(r.value==null?"":+r.value.toFixed(4),r.value==null?"":r.risk.label);});
-  const d=o.d;
-  hdr.push("bel_kalca","bel_boy","kmrf_sayisi","mets_kriter_sayisi","sld_sinifi","alkol_bolgesi","baveno","easl_yol");
-  row.push(d.waist&&d.hip?+(d.waist/d.hip).toFixed(3):"",d.waist&&d.height?+(d.waist/d.height).toFixed(3):"",o.c.count,o.m.count,o.sld.label,alcZone(d)||"",o.bav.label,o.easl.label);
+  const {hdr,row}=buildDbRow(o,p);
   const ws3=XLSX.utils.aoa_to_sheet([hdr,row]); XLSX.utils.book_append_sheet(wb,ws3,"Veritabani_satiri");
   const buf=XLSX.write(wb,{bookType:"xlsx",type:"array"});
   await saveFile(fileBase(p)+".xlsx",buf);
 };
+
+
+/* ---------- Veritabanı satırı ---------- */
+function buildDbRow(o,p){
+  const d=o.d;
+  const hdr=["kayit_zamani","hasta_no","ad","soyad","dogum_tarihi","tetkik_tarihi","etiyoloji","ek_tani","cinsiyet","hekim","kurum","not"],
+        row=[new Date().toLocaleString("tr-TR"),p.p_id,p.p_first,p.p_last,p.p_dob,p.p_date,p.etioLabel,p.p_diag,d.sex==="M"?"E":"K",p.p_doc,p.p_inst,p.note];
+  INPUT_ORDER.forEach(f=>{hdr.push(f.id);const v=d[f.id];row.push(f.type==="check"?(v?1:0):(v==null?"":(typeof v==="number"?+v.toFixed(3):v)));});
+  hdr.push("bmi_hesap","globulin_hesap","mamc_hesap","alkol_g_gun");
+  row.push(d.bmi==null?"":+d.bmi.toFixed(2),d.glob==null?"":+d.glob.toFixed(2),d.mamc==null?"":+d.mamc.toFixed(2),d.alcDay==null?"":+d.alcDay.toFixed(1));
+  SCORES.forEach(s=>{const r=o.res[s.id];hdr.push(s.id,s.id+"_sinif");row.push(r.value==null?"":+r.value.toFixed(4),r.value==null?"":r.risk.label);});
+  hdr.push("bel_kalca","bel_boy","kmrf_sayisi","mets_kriter_sayisi","sld_sinifi","alkol_bolgesi","baveno","easl_yol");
+  row.push(d.waist&&d.hip?+(d.waist/d.hip).toFixed(3):"",d.waist&&d.height?+(d.waist/d.height).toFixed(3):"",o.c.count,o.m.count,o.sld.label,alcZone(d)||"",o.bav.label,o.easl.label);
+  return {hdr,row};
+}
+
+/* ---------- Excel veritabanı (bilgisayardaki dosyada biriktirme) ---------- */
+const DB={wb:null,sheet:"Veritabani",hdr:[],rows:[],name:null,handle:null,unsaved:0};
+const DB_SHEETS=["Veritabani","Veritabani_satiri"];
+function dbRender(){
+  const st=document.getElementById("dbState"), chip=document.getElementById("dbChip");
+  if(!DB.wb){st.textContent="Veritabanı yüklenmedi.";chip.hidden=true;}
+  else{
+    const how=DB.handle?"değişiklikler doğrudan dosyaya yazılıyor":(DB.unsaved?`<span class="warn">${DB.unsaved} değişiklik henüz indirilmedi</span>`:"tüm kayıtlar indirildi");
+    st.innerHTML=`Yüklü: <b>${esc(DB.name)}</b> · ${DB.rows.length} kayıt · ${how}`;
+    chip.hidden=false; chip.textContent=`Veritabanı: ${DB.rows.length} kayıt${DB.unsaved?` · ${DB.unsaved} değişiklik indirilmedi`:""}`;
+    chip.className="pill "+(DB.unsaved?"lvl-mid":"lvl-info");
+  }
+  document.getElementById("btnDbAdd").disabled=!DB.wb;
+  document.getElementById("btnDbSave").disabled=!DB.wb||(!!DB.handle&&!DB.unsaved);
+}
+function dbLoad(buf,name){
+  const wb=XLSX.read(buf,{type:"array"});
+  let sh=DB_SHEETS.find(n=>wb.SheetNames.includes(n))||wb.SheetNames[0];
+  const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sh],{header:1,defval:"",raw:true});
+  const hdr=(aoa[0]||[]).map(h=>String(h).trim());
+  const rows=aoa.slice(1).filter(r=>r.some(c=>c!==""&&c!=null));
+  if(sh==="Veritabani_satiri"){sh="Veritabani";} // tek hasta dosyasından başlatıldıysa yeni sayfaya taşı
+  Object.assign(DB,{wb,sheet:sh,hdr,rows,name,unsaved:0});
+}
+function dbNew(){
+  const wb=XLSX.utils.book_new();
+  Object.assign(DB,{wb,sheet:"Veritabani",hdr:[],rows:[],name:`karaciger_NIT_veritabani_${todayTR().replace(/\./g,"-")}.xlsx`,handle:null,unsaved:0});
+}
+function dbBuffer(){
+  const ws=XLSX.utils.aoa_to_sheet([DB.hdr,...DB.rows]);
+  ws["!cols"]=DB.hdr.map(h=>({wch:Math.max(8,Math.min(28,String(h).length+2))}));
+  ws["!freeze"]={xSplit:4,ySplit:1};
+  if(DB.wb.SheetNames.includes(DB.sheet)) DB.wb.Sheets[DB.sheet]=ws; else XLSX.utils.book_append_sheet(DB.wb,ws,DB.sheet);
+  // Veritabani sayfası ilk sırada olsun
+  DB.wb.SheetNames=[DB.sheet,...DB.wb.SheetNames.filter(n=>n!==DB.sheet)];
+  return XLSX.write(DB.wb,{bookType:"xlsx",type:"array"});
+}
+async function dbWriteHandle(){
+  const w=await DB.handle.createWritable(); await w.write(dbBuffer()); await w.close(); DB.unsaved=0;
+}
+function dbKey(get){const no=String(get("hasta_no")||"").trim(), t=String(get("tetkik_tarihi")||"").trim();
+  const nm=(String(get("ad")||"")+" "+String(get("soyad")||"")).trim().toLocaleLowerCase("tr");
+  return (no?("no:"+no):("ad:"+nm))+"|"+t;}
+function dbFindDuplicate(rec){
+  const k=dbKey(h=>rec[h]);
+  return DB.rows.findIndex(r=>dbKey(h=>{const i=DB.hdr.indexOf(h);return i<0?"":r[i];})===k);
+}
+async function dbCommit(rec,replaceIdx){
+  Object.keys(rec).forEach(h=>{if(!DB.hdr.includes(h)){DB.hdr.push(h);DB.rows.forEach(r=>r.push(""));}});
+  const arr=DB.hdr.map(h=>rec[h]===undefined?"":rec[h]);
+  if(replaceIdx!=null&&replaceIdx>=0) DB.rows[replaceIdx]=arr; else DB.rows.push(arr);
+  DB.unsaved++;
+  let msg;
+  if(DB.handle){try{await dbWriteHandle();msg="dosyaya kaydedildi";}catch(e){DB.handle=null;msg="dosyaya yazılamadı, indirmeniz gerekiyor";}}
+  else msg="eklendi; dosyayı güncellemek için “Güncel veritabanını indir”";
+  return msg;
+}
+async function dbAdd(){
+  const o=last,p=patient();
+  if(!p.p_id&&!(p.p_first||p.p_last)){setStatus("Veritabanına eklemek için en az ad-soyad veya protokol no girin.","err");return;}
+  const {hdr,row}=buildDbRow(o,p); const rec={}; hdr.forEach((h,i)=>rec[h]=row[i]);
+  const dup=dbFindDuplicate(rec);
+  const box=document.getElementById("dbChoice");
+  const finish=async idx=>{box.hidden=true;box.innerHTML="";
+    const msg=await dbCommit(rec,idx); dbRender();
+    const who=p.fullName||p.p_id;
+    if(document.getElementById("dbAutoClear").checked){clearAll();closeModal();toast(`${who} veritabanına ${msg} (${DB.rows.length} kayıt). Form temizlendi.`);}
+    else setStatus(`${who} veritabanına ${msg}.`,"ok");
+  };
+  if(dup>=0){
+    box.hidden=false;
+    box.innerHTML=`<div>Bu hasta ve tetkik tarihi için veritabanında zaten bir kayıt var (satır ${dup+2}).</div><div class="row-actions" style="justify-content:flex-start"><button class="btn" type="button" id="dbRep">Eski kaydın üzerine yaz</button><button class="btn" type="button" id="dbDupAdd">Yeni satır olarak ekle</button><button class="btn" type="button" id="dbDupCancel">Vazgeç</button></div>`;
+    document.getElementById("dbRep").onclick=()=>finish(dup);
+    document.getElementById("dbDupAdd").onclick=()=>finish(null);
+    document.getElementById("dbDupCancel").onclick=()=>{box.hidden=true;box.innerHTML="";};
+    return;
+  }
+  await finish(null);
+}
+document.getElementById("btnDbOpen").onclick=async()=>{
+  if(!window.XLSX){setStatus("Excel kütüphanesi yüklenemedi; internet bağlantısını kontrol edin.","err");return;}
+  if(window.showOpenFilePicker&&window.self===window.top){
+    try{
+      const [h]=await window.showOpenFilePicker({types:[{description:"Excel",accept:{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"]}}]});
+      const f=await h.getFile(); dbLoad(await f.arrayBuffer(),f.name);
+      try{ if((await h.requestPermission({mode:"readwrite"}))==="granted") DB.handle=h; else DB.handle=null; }catch(e){DB.handle=null;}
+      dbRender(); setStatus(`${f.name} yüklendi (${DB.rows.length} kayıt).`,"ok"); return;
+    }catch(e){ if(e&&e.name==="AbortError") return; }
+  }
+  document.getElementById("dbFile").click();
+};
+document.getElementById("dbFile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{DB.handle=null;dbLoad(await f.arrayBuffer(),f.name);dbRender();setStatus(`${f.name} yüklendi (${DB.rows.length} kayıt).`,"ok");}
+  catch(err){setStatus("Dosya okunamadı: "+(err&&err.message||err),"err");}
+  e.target.value="";
+};
+document.getElementById("btnDbNew").onclick=()=>{
+  if(!window.XLSX){setStatus("Excel kütüphanesi yüklenemedi.","err");return;}
+  if(DB.unsaved){setStatus(`Yüklü veritabanında ${DB.unsaved} indirilmemiş değişiklik var; önce indirin.`,"err");return;}
+  dbNew();dbRender();setStatus("Yeni boş veritabanı başlatıldı. Hastaları ekledikten sonra indirmeyi unutmayın.","ok");
+};
+document.getElementById("btnDbAdd").onclick=dbAdd;
+document.getElementById("btnDbSave").onclick=async()=>{
+  if(!DB.wb) return;
+  if(DB.handle){try{await dbWriteHandle();dbRender();setStatus("Veritabanı dosyaya kaydedildi.","ok");return;}catch(e){DB.handle=null;}}
+  await saveFile(DB.name.replace(/\.(xls|csv)$/i,".xlsx"),dbBuffer());
+  if(document.getElementById("exportStatus").classList.contains("ok")){DB.unsaved=0;dbRender();}
+};
+document.getElementById("dbChip").addEventListener("click",openModal);
+window.addEventListener("beforeunload",e=>{if(DB.unsaved){e.preventDefault();e.returnValue="";}});
+
+/* ---------- Temizle: form + hasta bilgileri + not ---------- */
+let toastT=null;
+function toast(t){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true;},6000);}
+function clearAll(){
+  clearForm();
+  PFIELDS.forEach(f=>{const el=document.getElementById(f.id); if(f.select) el.value="auto"; else el.value="";});
+  document.getElementById("p_note").value="";
+  document.getElementById("exportStatus").textContent="";
+  const box=document.getElementById("dbChoice"); box.hidden=true; box.innerHTML="";
+  document.getElementById("exampleBanner").style.display="none";
+  render();
+  window.scrollTo({top:0}); const a=document.getElementById("age"); if(a) a.focus({preventScroll:true});
+}
+document.getElementById("btnClear").onclick=()=>{clearAll();toast("Form, hasta bilgileri ve not temizlendi."+(DB.wb?" Yüklü veritabanı korunuyor.":""));};
+dbRender();
 
 /* PDF: pdfmake (gömülü Roboto fontu Türkçe karakterleri destekler) */
 const LV={low:["#e3f2e8","#23784a"],mid:["#fbf0d9","#8a560a"],high:["#fbe5e0","#b8321f"],crit:["#f5d9d9","#7a1414"],na:["#eceff1","#6b7781"],info:["#e2ecf5","#2d5d8a"]};
